@@ -100,6 +100,7 @@ def play(args):
     env.commands[:, 2] = 0
     obs = env.get_observations()
 
+
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, return_log_dir=True)
@@ -163,7 +164,8 @@ def play(args):
             actions = policy(normalized_obs, hist_encoding=True)
             
         obs, _, rews, dones, infos = env.step(actions.detach())
-        
+        # print("feet_position_left", env.rigid_body_states[:, 6, 2])
+        # print("feet_position_right", env.rigid_body_states[:, 11, 2])
         if args.record_video:
             imgs = env.render_record(mode='rgb_array')
             if imgs is not None:

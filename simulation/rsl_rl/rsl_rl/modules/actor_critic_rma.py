@@ -132,6 +132,7 @@ class Actor(nn.Module):
         if tanh_encoder_output:
             actor_layers.append(nn.Tanh())
         self.actor_backbone = nn.Sequential(*actor_layers)
+        print(f"actor_backbone: {self.actor_backbone}")
 
 
     # 用于提取前向主干网络
@@ -241,6 +242,7 @@ class ActorCriticRMA(nn.Module):
     def update_distribution(self, observations, hist_encoding):
         mean = self.actor(observations, hist_encoding)
         self.distribution = Normal(mean, mean*0. + self.std)
+
 
     def act(self, observations, hist_encoding=False, **kwargs):
         self.update_distribution(observations, hist_encoding)

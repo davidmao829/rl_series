@@ -11,4 +11,4 @@ exptid=${2}
 python save_jit_5dof.py --robot "${robot_name}" \
                 --proj_name "${proj_name}" \
                 --exptid "${exptid}" \
-                --checkpoint 15000 \
+                --checkpoint 18000 \

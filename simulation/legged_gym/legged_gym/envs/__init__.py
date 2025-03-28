@@ -37,7 +37,8 @@ from .gr1.gr1_walk_phase import GR1WalkPhase
 from .gr1.gr1_walk_phase_config import GR1WalkPhaseCfg, GR1WalkPhaseCfgPPO
 from .gr1.gr1_5dof import GR1_5dof
 from .gr1.gr1_5dof_config import GR1_5dofCfg, GR1_5dofCfgPPO
-
+from .gr1.gr1_wb import GR1_wb
+from .gr1.gr1_wb_config import GR1_wb_Cfg, GR1_wbCfgPPO
 from .g1.g1_walk_phase import G1WalkPhase
 from .g1.g1_walk_phase_config import G1WalkPhaseCfg, G1WalkPhaseCfgPPO
 
@@ -56,7 +57,7 @@ task_registry.register("gr1_5dof", GR1_5dof, GR1_5dofCfg(), GR1_5dofCfgPPO())
 
 
 task_registry.register("g1_walk_phase", G1WalkPhase, G1WalkPhaseCfg(), G1WalkPhaseCfgPPO())
-
+task_registry.register("gr1_wb",GR1_wb, GR1_wb_Cfg(), GR1_wbCfgPPO())
 
 task_registry.register("h1_walk_phase", H1WalkPhase, H1WalkPhaseCfg(), H1WalkPhaseCfgPPO())
 

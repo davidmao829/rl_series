@@ -99,7 +99,8 @@ class ActorCritic(nn.Module):
                            num_actions=num_actions, 
                            actor_hidden_dims=actor_hidden_dims, 
                            activation=activation, tanh_encoder_output=kwargs['tanh_encoder_output'])
-        
+
+
         # Value function
         critic_layers = []
         critic_layers.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
@@ -123,7 +124,7 @@ class ActorCritic(nn.Module):
         # disable args validation for speedup
         Normal.set_default_validate_args = False
         
-    
+
     @staticmethod
     # not used at the moment
     def init_weights(sequential, scales):
@@ -160,6 +161,7 @@ class ActorCritic(nn.Module):
         #     np.savetxt('nan_obs.txt', obs_array)
         #     exit()
         self.distribution = Normal(mean, mean*0. + self.std)
+
 
     def act(self, observations, **kwargs):
         self.update_distribution(observations)

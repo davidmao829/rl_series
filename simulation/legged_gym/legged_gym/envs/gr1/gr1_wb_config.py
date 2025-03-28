@@ -1,11 +1,11 @@
 from legged_gym.envs.base.humanoid_config import HumanoidCfg, HumanoidCfgPPO
 
 
-class GR1_5dofCfg(HumanoidCfg):
+class GR1_wb_Cfg(HumanoidCfg):
     class env(HumanoidCfg.env):
         num_envs = 4096
-        num_actions = 10
-        num_dofs = 12
+        num_actions = 12
+        num_dofs = 14
         n_priv = 0
         n_proprio = 2 + 3 + 3 + 2 + 2 * num_dofs + num_actions
         n_priv_latent = 4 + 1 + 2 * num_dofs + 3
@@ -29,26 +29,55 @@ class GR1_5dofCfg(HumanoidCfg):
         normalize_obs = True
 
     class terrain(HumanoidCfg.terrain):
+        # mesh_type = 'plane'
         mesh_type = 'trimesh'
-        height = [0, 0.04]
-        horizontal_scale = 0.1
+        curriculum = True
+        # rough terrain only:
+        measure_heights = False
+        static_friction = 0.6
+        dynamic_friction = 0.6
+        terrain_length = 8.
+        terrain_width = 8.
+        num_rows = 20  # number of terrain rows (levels)
+        num_cols = 20  # number of terrain cols (types)
+        max_init_terrain_level = 5  # starting curriculum state
+        platform = 3.
+        terrain_dict = {"flat": 0.3,
+                        "rough flat": 0.2,
+                        "slope up": 0.2,
+                        "slope down": 0.2,
+                        "rough slope up": 0.0,
+                        "rough slope down": 0.0,
+                        "stairs up": 0.,
+                        "stairs down": 0.,
+                        "discrete": 0.1,
+                        "wave": 0.0, }
+        terrain_proportions = list(terrain_dict.values())
+
+        rough_flat_range = [0.005, 0.01]  # meter
+        slope_range = [0, 0.1]  # rad
+        rough_slope_range = [0.005, 0.02]
+        stair_width_range = [0.25, 0.25]
+        stair_height_range = [0.01, 0.1]
+        discrete_height_range = [0.0, 0.01]
+        restitution = 0.
 
     class init_state(HumanoidCfg.init_state):
-        pos = [0, 0, 1.0]
+        pos = [0, 0, 0.92]
         default_joint_angles = {
             'l_hip_roll': 0.0,
             'l_hip_yaw': 0.,
-            'l_hip_pitch': -0.4,
-            'l_knee_pitch': 0.8,
-            'l_ankle_pitch': -0.4,
+            'l_hip_pitch': -0.1,
+            'l_knee_pitch': 0.2,
+            'l_ankle_pitch': -0.1,
             'l_ankle_roll': 0.0,
 
             # right leg
             'r_hip_roll': -0.,
             'r_hip_yaw': 0.,
-            'r_hip_pitch': -0.4,
-            'r_knee_pitch': 0.8,
-            'r_ankle_pitch': -0.4,
+            'r_hip_pitch': -0.1,
+            'r_knee_pitch': 0.2,
+            'r_ankle_pitch': -0.1,
             'r_ankle_roll': 0.0,
 
             # waist
@@ -65,7 +94,7 @@ class GR1_5dofCfg(HumanoidCfg):
             'l_shoulder_pitch': 0.0,
             'l_shoulder_roll': 0.2,
             'l_shoulder_yaw': 0.0,
-            'l_elbow_pitch': -0.3,
+            'l_elbow_pitch': -0.52,
             'l_wrist_yaw': 0.0,
             'l_wrist_roll': 0.0,
             'l_wrist_pitch': 0.0,
@@ -74,7 +103,7 @@ class GR1_5dofCfg(HumanoidCfg):
             'r_shoulder_pitch': 0.0,
             'r_shoulder_roll': -0.2,
             'r_shoulder_yaw': 0.0,
-            'r_elbow_pitch': -0.3,
+            'r_elbow_pitch': -0.52,
             'r_wrist_yaw': 0.0,
             'r_wrist_roll': 0.0,
             'r_wrist_pitch': 0.0
@@ -84,12 +113,16 @@ class GR1_5dofCfg(HumanoidCfg):
         stiffness = {
             'hip_roll': 200, 'hip_yaw': 200, 'hip_pitch': 350,
             'knee_pitch': 350,
-            'ankle_pitch': 10.98, 'ankle_roll': 0.0
+            'ankle_pitch': 10.98, 'ankle_roll': 0.0,
+            'shoulder_pitch': 50,
+            # 'waist_yaw': 362.52, 'waist_pitch': 362.52, 'waist_roll': 362.52,
         }
         damping = {
             'hip_roll': 20, 'hip_yaw': 20, 'hip_pitch': 20,
             'knee_pitch': 20,
-            'ankle_pitch': 0.60, 'ankle_roll': 0.1
+            'ankle_pitch': 0.60, 'ankle_roll': 0.1,
+            'shoulder_pitch': 5
+            # 'waist_yaw': 10.08, 'waist_pitch': 10.08, 'waist_roll': 10.08,
         }
 
         action_scale = 0.5
@@ -173,7 +206,7 @@ class GR1_5dofCfg(HumanoidCfg):
         regularization_scale_gamma = 0.0001
 
         class scales:
-            joint_pos = 1.6
+            joint_pos = 1.2
             feet_clearance = 1.
             feet_contact_number = 2.0
 
@@ -183,34 +216,36 @@ class GR1_5dofCfg(HumanoidCfg):
             knee_distance = 0.2
 
             tracking_lin_vel_exp = 1.875
-            vel_mismatch_exp = 0.5  # lin_z; ang x,y
+            vel_mismatch_exp = 2.5  # lin_z; ang x,y
             tracking_ang_vel = 2.0
             low_speed = 0.2
-            track_vel_hard = 0.5
-
-
-            alive = 2.0
+            track_vel_hard = 2.5
+            # stand_still = 2.5
+            base_height = 0.2
+            # alive = 2.0
             dof_error = -0.06
             dof_error_upper = -0.2
+            roll_pitch=-0.2
             feet_stumble = -1.25
             feet_contact_forces = -2e-3
 
             lin_vel_z = -1.0
             ang_vel_xy = -0.1
-            orientation = -1.0
+            orientation = -5.0
 
             collision = -10.0
 
-            dof_pos_limits = -5.0
-            dof_torque_limits = -0.8
+            dof_pos_limits = -3.0
+            dof_torque_limits = -0.5
             torque_penalty = -6e-7
 
         min_dist = 0.2
         max_dist = 0.5
         max_knee_dist = 0.25
         target_joint_pos_scale = 0.20
+        base_height_target = 0.91
         target_feet_height = 0.1
-        cycle_time = 0.8
+        cycle_time = 0.5
         double_support_threshold = 0.5
         only_positive_rewards = False
         tracking_sigma = 0.2
@@ -247,7 +282,7 @@ class GR1_5dofCfg(HumanoidCfg):
 
     class noise(HumanoidCfg.noise):
         add_noise = True
-        noise_increasing_steps = 5000
+        noise_increasing_steps = 2000
 
         class noise_scales:
             dof_pos = 0.02
@@ -264,16 +299,20 @@ class GR1_5dofCfg(HumanoidCfg):
 
         ang_vel_clip = 0.1
         lin_vel_clip = 0.1
-        stand_com_threshold = 0.05 # if (lin_vel_x, lin_vel_y, ang_vel_yaw).norm < this, robot should stand
-        sw_switch = True # use stand_com_threshold or not
-
+        gait = ["walk", "stand", "walk"]
+        gait_time_range = {"walk": [4, 6],
+                           "stand": [2, 3],
+                           "walk": [4, 6]}
+        stand_com_threshold = 0.05  # if (lin_vel_x, lin_vel_y, ang_vel_yaw).norm < this, robot should stand
+        sw_switch = True  # use stand_com_threshold or not
 
         class ranges:
-            lin_vel_x = [0., 0.6]  # min max [m/s]
-            lin_vel_y = [-0.3, 0.3]
-            ang_vel_yaw = [-0.3, 0.3]  # min max [rad/s]
+            lin_vel_x = [-0.5, 1.0]  # min max [m/s]
+            lin_vel_y = [-0.4, 0.4]
+            ang_vel_yaw = [-0.5, 0.5]  # min max [rad/s]
 
-class GR1_5dofCfgPPO(HumanoidCfgPPO):
+
+class GR1_wbCfgPPO(HumanoidCfgPPO):
     seed = 1
 
     class runner(HumanoidCfgPPO.runner):
@@ -296,4 +335,4 @@ class GR1_5dofCfgPPO(HumanoidCfgPPO):
         grad_penalty_coef_schedule = [0.002, 0.002, 700, 1000]
 
     class policy(HumanoidCfgPPO.policy):
-        action_std = [0.3, 0.3, 0.3, 0.4, 0.2] * 2
+        action_std = [0.3, 0.3, 0.8, 0.8, 0.5, 0.5] * 2

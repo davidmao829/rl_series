@@ -113,12 +113,14 @@ class GR1_5dofCfg(HumanoidCfg):
         stiffness = {
             'hip_roll': 200, 'hip_yaw': 200, 'hip_pitch': 350,
             'knee_pitch': 350,
-            'ankle_pitch': 10.98, 'ankle_roll': 0.0
+            'ankle_pitch': 10.98, 'ankle_roll': 0.0,
+            # 'waist_yaw': 362.52, 'waist_pitch': 362.52, 'waist_roll': 362.52,
         }
         damping = {
             'hip_roll': 20, 'hip_yaw': 20, 'hip_pitch': 20,
             'knee_pitch': 20,
-            'ankle_pitch': 0.60, 'ankle_roll': 0.1
+            'ankle_pitch': 0.60, 'ankle_roll': 0.1,
+            # 'waist_yaw': 10.08, 'waist_pitch': 10.08, 'waist_roll': 10.08,
         }
 
         action_scale = 0.5
@@ -216,13 +218,14 @@ class GR1_5dofCfg(HumanoidCfg):
             tracking_ang_vel = 2.0
             low_speed = 0.2
             track_vel_hard = 0.5
-            stand_still = 2.5
+            # stand_still = 2.5
 
             alive = 2.0
             dof_error = -0.06
             dof_error_upper = -0.2
             feet_stumble = -1.25
             feet_contact_forces = -2e-3
+            feet_position = 0.05
 
             lin_vel_z = -1.0
             ang_vel_xy = -0.1
@@ -237,14 +240,14 @@ class GR1_5dofCfg(HumanoidCfg):
         min_dist = 0.2
         max_dist = 0.5
         max_knee_dist = 0.25
-        target_joint_pos_scale = 0.20
+        target_joint_pos_scale = 0.18
         target_feet_height = 0.1
         cycle_time = 0.8
         double_support_threshold = 0.5
         only_positive_rewards = False
         tracking_sigma = 0.2
         tracking_sigma_ang = 0.125
-        max_contact_force = 500  # Forces above this value are penalized
+        max_contact_force = 350  # Forces above this value are penalized
         soft_torque_limit = 0.9
 
     class domain_rand:
@@ -330,3 +333,4 @@ class GR1_5dofCfgPPO(HumanoidCfgPPO):
 
     class policy(HumanoidCfgPPO.policy):
         action_std = [0.3, 0.3, 0.3, 0.4, 0.2] * 2
+        tanh_encoder_output = True
