@@ -238,7 +238,7 @@ class OnPolicyRunner:
                 if it % (2*self.save_interval) == 0:
                     self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
             else:
-                if it % (5*self.save_interval) == 0:
+                if it % (2*self.save_interval) == 0:
                     self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
             ep_infos.clear() # 清空回合信息列表 准备新的回合记录
         

@@ -74,10 +74,10 @@ def play(args):
     critic_obs_extra = 0
     
     if args.robot == "gr1":
-        n_priv_latent = 4 + 1 + 12*2 + 3
+        n_priv_latent = 4 + 1 + 14*2 + 3
         num_scan = 0
-        num_actions = 10
-        num_dofs = 12
+        num_actions = 12
+        num_dofs = 14
         
         n_proprio = 2 + 3 + 3 + 2 + 2*num_dofs + num_actions
     elif args.robot == "h1":

@@ -64,8 +64,10 @@ def train(args):
     wandb.save(LEGGED_GYM_ENVS_DIR + "/base/legged_robot.py", policy="now")
     wandb.save(LEGGED_GYM_ENVS_DIR + "/base/humanoid_config.py", policy="now")
     wandb.save(LEGGED_GYM_ENVS_DIR + "/base/humanoid.py", policy="now")
-    wandb.save(LEGGED_GYM_ENVS_DIR + "/{}/{}.py".format(robot_type, args.task), policy="now")
-    wandb.save(LEGGED_GYM_ENVS_DIR + "/{}/{}_config.py".format(robot_type, args.task), policy="now")
+    wandb.save(LEGGED_GYM_ENVS_DIR + "/gr1/gr1_wb_config.py", policy="now")
+    wandb.save(LEGGED_GYM_ENVS_DIR + "/gr1/gr1_wb.py", policy="now")
+    # wandb.save(LEGGED_GYM_ENVS_DIR + "/{}/{}.py".format(robot_type, args.task), policy="now")
+    # wandb.save(LEGGED_GYM_ENVS_DIR + "/{}/{}_config.py".format(robot_type, args.task), policy="now")
     
     env, _ = task_registry.make_env(name=args.task, args=args)
     ppo_runner, train_cfg = task_registry.make_alg_runner(log_root=log_pth, env=env, name=args.task, args=args)

@@ -56,7 +56,7 @@ asset_root = f'{LEGGED_GYM_ROOT_DIR}/resources/robots'
 # asset_file = "h1/h1.urdf"
 # asset_file = "gr1t2/urdf/GR1T2.urdf"
 # asset_file = "g1/g1-nohand.urdf"
-asset_file = "gr1t1/urdf/GR1T1.urdf"
+asset_file = "gr1t1/urdf/GR1T1_14dof.urdf"
 # asset_file = "GR2T4A/URDF/GR2T4A/urdf/GR2T4A_new.urdf"
 # asset_file = "berkeley_humanoid/urdf/robot.urdf"
 

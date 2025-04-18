@@ -3,6 +3,7 @@ from time import time
 from warnings import WarningMessage
 import numpy as np
 import os
+from colorama import Fore, Style
 
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
@@ -153,7 +154,15 @@ class GR1_wb(Humanoid):
     #     self.ref_action = 2 * self.ref_dof_pos
     def _get_phase(self):
         cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
-        phase = self.episode_length_buf * self.dt % cycle_time
+
+        if self.cfg.commands.sw_switch:
+            stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
+            self.phase_length_buf[stand_command] = 0
+            # self.gait_start is rand 0 or 0.5
+            phase = (self.phase_length_buf * self.dt % cycle_time) * (~stand_command)
+        else:
+            phase = self.episode_length_buf * self.dt % cycle_time
+
         return phase
 
     def _get_gait_phase(self):  # return float mask 1 is stance, 0 is swing
@@ -163,8 +172,9 @@ class GR1_wb(Humanoid):
                                   device=self.device)  # Left foot stance (0.0 ~ 0.04s and 0.76 ~ 0.8s)
         stance_mask[:, 0] = (phase >= (0.5 * cycle_time))  # Left foot stance (0.4 ~ 0.8s)
         stance_mask[:, 1] = (phase < (0.5 * cycle_time))  # Left foot stance (0.0 ~ 0.4s)
-        stance_mask[(phase < (0.05 * cycle_time)) | (
-                phase >= (0.95 * cycle_time))] = 1  # Double support phase (0.0 ~ 0.02s and 0.78 ~ 0.8s)
+        # 着地掩码为1
+        stance_mask[(phase < (0.05 * cycle_time)) | (phase >= (0.95 * cycle_time)) | ((phase >= (0.45 * cycle_time)) & (
+                phase <= (0.55 * cycle_time)))] = 1  # Double support phase (0.0 ~ 0.02s and 0.78 ~ 0.8s)
         self.ref_mask = 1 - stance_mask
         return stance_mask
 
@@ -174,18 +184,19 @@ class GR1_wb(Humanoid):
         # phase = phase % 1.0  # Normalize phase to [0, 1)# Initialize reference positions
         self.ref_dof_pos[:, :] = self.default_dof_pos[0, :]  # shape: [4096, 12]# Define the fixed pose (双支撑姿态)
         cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
-        fixed_pose = torch.tensor([0.0, 0.0, -0.1, 0.2, -0.1, 0.0],
+        fixed_pose_list = [0.0, 0.0, -0.2, 0.4, -0.2, 0.0]
+        fixed_pose = torch.tensor(fixed_pose_list,
                                   device=self.device)  # shape: [6]# Define the stepping trajectory (左腿摆动和右腿摆动的轨迹)
-        stepping_traj = [[0.0, 0.0, -0.1, 0.2, -0.1, 0.0, ],  # t = 0.0s
-                         [0.0, 0.0, -0.26, 0.4, -0.14, 0.0],  # t = 0.1s
-                         [0.0, 0.0, -0.4, 0.64, -0.24, 0.0],  # t = 0.2s
-                         [0.0, 0.0, -0.26, 0.4, -0.14, 0.0],  # t = 0.3s
-                         [0.0, 0.0, -0.1, 0.2, -0.1, 0.0]  # t = 0.4s，与 t=0.0s相同
-                         ]
+        stepping_traj = [fixed_pose_list,  # t = 0.0s
+                         [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.1s
+                         [0.0, 0.0, -0.38, 0.76, -0.38, 0.0],  # t = 0.2s
+                         [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.3s
+                         fixed_pose_list]  # t = 0.4s，与 t=0.0s相同
+
         arm_traj = [[0, 0],
-                    [0.3, -0.3],
+                    [0.3, -0.2],
                     [0, 0],
-                    [-0.3, 0.3],
+                    [-0.2, 0.3],
                     [0, 0]]
         arm_traj = torch.tensor(arm_traj, device=self.device)
 
@@ -230,7 +241,10 @@ class GR1_wb(Humanoid):
             self.ref_dof_pos[mask_right_swing, 0:6] = fixed_pose.float()  # 左腿保持固定姿态
 
         self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 0:6] = fixed_pose
-        self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 7:13] = fixed_pose
+        self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 6:12] = fixed_pose
+        # if mask_double_support_1 | mask_double_support_2 | mask_double_support_3:
+        #     print(f"{Fore.GREEN}Time{self._get_phase()}     Ref_Dof_Pos{self.ref_dof_pos}{Style.RESET_ALL}")
+        #     print(f"{Fore.RED} Dof_Pos{self.dof_pos}{Style.RESET_ALL}")
         self.ref_action = 2 * self.ref_dof_pos
 
     def _update_terrain_curriculum(self, env_ids):
@@ -421,10 +435,6 @@ class GR1_wb(Humanoid):
         actions_scaled_raw = actions * self.cfg.control.action_scale
         actions_scaled = torch.zeros(self.num_envs, self.num_dofs, device=self.device)
         actions_scaled[:, self.control_index] = actions_scaled_raw
-        # print("ref_pos", self.ref_dof_pos)
-        # print("actions_scaled_raw", actions_scaled_raw)
-        # print("control_index", self.control_index)
-        # print("actions_scaled", actions_scaled)
         control_type = self.cfg.control.control_type
         if control_type == "P":
             if not self.cfg.domain_rand.randomize_motor:
@@ -633,19 +643,56 @@ class GR1_wb(Humanoid):
                         torch.zeros_like(r))
         return r
 
-    # def _reward_roll_pitch(self):
-    #     stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
-    #     roll_pitch = torch.norm(torch.cat([self.pitch, self.roll], dim=-1))
-    #     r = torch.sum(torch.square(roll_pitch[stand_command]))
-    #     return r
-    # def _reward_stand_vel(self):
-    #     stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
-    #     roll_pitch = torch.norm(torch.cat([self.pitch, self.roll], dim=-1))
-    #     r = torch.sum(torch.square(roll_pitch[stand_command]))
-    #     return r
     def _reward_feet_contact_number(self):
         contact = self.contact_forces[:, self.feet_indices, 2] > 5.
         stance_mask = self._get_gait_phase()
         stance_mask[torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold] = 1
-        reward = torch.where(contact == stance_mask, 1, -0.3)
+        reward = torch.where(contact == stance_mask, 1, -0.8)
         return torch.mean(reward, dim=1)
+
+    def _reward_feet_position(self):
+        stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
+        feet_height = self.rigid_body_states[:, self.feet_indices, 2]
+        traget_feet_height = 0.055
+        r = torch.exp(-3 * torch.abs(feet_height - traget_feet_height).sum(dim=1))
+        r[~stand_command] = 1
+        return r
+
+    def _reward_action_smoothness(self):
+        """
+        Encourages smoothness in the robot's actions by penalizing large differences between consecutive actions.
+        This is important for achieving fluid motion and reducing mechanical stress.
+        """
+        term_1 = torch.sum(torch.square(
+            self.last_actions - self.actions), dim=1)
+        term_2 = torch.sum(torch.square(
+            self.actions + self.last_last_actions - 2 * self.last_actions), dim=1)
+        term_3 = 0.05 * torch.sum(torch.abs(self.actions), dim=1)
+        return term_1 + term_2 + term_3
+
+    def _reward_back(self):
+        stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
+        # r = torch.sum((torch.abs(self.base_lin_vel[:, 0] * (self.base_lin_vel[:, 0] < 0)).view(-1, 1)), dim=1)
+        r = torch.sum((torch.abs(self.base_lin_vel[:, 0]).view(-1, 1)), dim=1)
+        r[~stand_command] = 0
+        return r
+
+    def _reward_ankle_pitch_limits(self):
+        out_of_limits_lower = (self.dof_pos - self.dof_pos_limits[:, 0] * 0.6)[:, [5, 10]]  # 超出上下界
+        out_of_limits_higher = (self.dof_pos - self.dof_pos_limits[:, 1] * 0.6)[:, [5, 10]]
+        # print("out_of_limits_lower", out_of_limits_lower.size())
+        rew_lower = torch.where(out_of_limits_lower < 0, torch.abs(out_of_limits_lower),
+                                torch.zeros_like(out_of_limits_lower))
+        rew_upper = torch.where(out_of_limits_higher > 0, torch.abs(out_of_limits_higher),
+                                torch.zeros_like(out_of_limits_higher))
+        # print("rew_lower", rew_lower.size())
+        rew = torch.sum(rew_lower + rew_upper, dim=-1)
+        # print("rew",rew.size())
+
+        return rew
+
+    # def _reward_feet_orientation(self):
+    #     rew = torch.sum(self.rigid_body_states[:, self.feet_indices, :2], dim=1)
+    #     # print("square", torch.square(self.rigid_body_states[:, self.feet_indices, :2]).size())
+    #     # print("sum", torch.sum(rew, dim=1).size())
+    #     return torch.sum(rew, dim=1)

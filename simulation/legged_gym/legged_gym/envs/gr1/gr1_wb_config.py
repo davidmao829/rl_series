@@ -67,17 +67,17 @@ class GR1_wb_Cfg(HumanoidCfg):
         default_joint_angles = {
             'l_hip_roll': 0.0,
             'l_hip_yaw': 0.,
-            'l_hip_pitch': -0.1,
-            'l_knee_pitch': 0.2,
-            'l_ankle_pitch': -0.1,
+            'l_hip_pitch': -0.2,
+            'l_knee_pitch': 0.4,
+            'l_ankle_pitch': -0.2,
             'l_ankle_roll': 0.0,
 
             # right leg
             'r_hip_roll': -0.,
             'r_hip_yaw': 0.,
-            'r_hip_pitch': -0.1,
-            'r_knee_pitch': 0.2,
-            'r_ankle_pitch': -0.1,
+            'r_hip_pitch': -0.2,
+            'r_knee_pitch': 0.4,
+            'r_ankle_pitch': -0.2,
             'r_ankle_roll': 0.0,
 
             # waist
@@ -113,14 +113,14 @@ class GR1_wb_Cfg(HumanoidCfg):
         stiffness = {
             'hip_roll': 200, 'hip_yaw': 200, 'hip_pitch': 350,
             'knee_pitch': 350,
-            'ankle_pitch': 10.98, 'ankle_roll': 0.0,
+            'ankle_pitch': 10, 'ankle_roll': 0.0,
             'shoulder_pitch': 50,
             # 'waist_yaw': 362.52, 'waist_pitch': 362.52, 'waist_roll': 362.52,
         }
         damping = {
             'hip_roll': 20, 'hip_yaw': 20, 'hip_pitch': 20,
             'knee_pitch': 20,
-            'ankle_pitch': 0.60, 'ankle_roll': 0.1,
+            'ankle_pitch': 2, 'ankle_roll': 0.1,
             'shoulder_pitch': 5
             # 'waist_yaw': 10.08, 'waist_pitch': 10.08, 'waist_roll': 10.08,
         }
@@ -141,7 +141,7 @@ class GR1_wb_Cfg(HumanoidCfg):
         clip_actions = 5
 
     class asset(HumanoidCfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/gr1t1/urdf/GR1T1_5dof.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/gr1t1/urdf/GR1T1_14dof.urdf'
 
         torso_name: str = 'base'
         chest_name: str = 'waist_roll'
@@ -206,36 +206,40 @@ class GR1_wb_Cfg(HumanoidCfg):
         regularization_scale_gamma = 0.0001
 
         class scales:
-            joint_pos = 1.2
+            joint_pos = 2.0
             feet_clearance = 1.
-            feet_contact_number = 2.0
+            feet_contact_number = 1.8
 
             feet_air_time = 1.2
-            foot_slip = -0.1
-            feet_distance = 0.2
-            knee_distance = 0.2
+            foot_slip = -0.3
+            feet_distance = 0.4
+            knee_distance = 0.4
 
-            tracking_lin_vel_exp = 1.875
-            vel_mismatch_exp = 2.5  # lin_z; ang x,y
-            tracking_ang_vel = 2.0
-            low_speed = 0.2
-            track_vel_hard = 2.5
+            tracking_lin_vel_exp = 1.8
+            vel_mismatch_exp = 1.5  # lin_z; ang x,y
+            tracking_ang_vel = 1.25
+            low_speed = 0.3
+            track_vel_hard = 2.0
             # stand_still = 2.5
-            base_height = 0.2
+            base_height = 0.3
             # alive = 2.0
-            dof_error = -0.06
+            default_joint_pos = 0.3
+            dof_error = -0.1
             dof_error_upper = -0.2
-            roll_pitch=-0.2
             feet_stumble = -1.25
             feet_contact_forces = -2e-3
+            # action_smoothness = -0.002
+            back = -1.5
+            # feet_orientation = -0.02
 
-            lin_vel_z = -1.0
+            lin_vel_z = -0.5
             ang_vel_xy = -0.1
-            orientation = -5.0
-
+            orientation = -3.0
+            feet_position = 0.5
             collision = -10.0
 
-            dof_pos_limits = -3.0
+            ankle_pitch_limits = -50.0
+            dof_pos_limits = -10.0
             dof_torque_limits = -0.5
             torque_penalty = -6e-7
 
@@ -243,15 +247,18 @@ class GR1_wb_Cfg(HumanoidCfg):
         max_dist = 0.5
         max_knee_dist = 0.25
         target_joint_pos_scale = 0.20
-        base_height_target = 0.91
-        target_feet_height = 0.1
-        cycle_time = 0.5
+        base_height_target = 0.90
+        target_feet_height = 0.08
+        cycle_time = 0.8
         double_support_threshold = 0.5
         only_positive_rewards = False
         tracking_sigma = 0.2
         tracking_sigma_ang = 0.125
         max_contact_force = 500  # Forces above this value are penalized
-        soft_torque_limit = 0.9
+        soft_torque_limit = 0.95
+        soft_dof_pos_limit = 0.95 # percentage of urdf limits, values above this limit are penalized
+        soft_dof_vel_limit = 0.95
+
 
     class domain_rand:
         domain_rand_general = True  # manually set this, setting from parser does not work;
@@ -261,18 +268,18 @@ class GR1_wb_Cfg(HumanoidCfg):
         gravity_range = (-0.1, 0.1)
 
         randomize_friction = (True and domain_rand_general)
-        friction_range = [0.1, 2.]
+        friction_range = [0.2, 1.8]
 
         randomize_base_mass = (True and domain_rand_general)
         added_mass_range = [-3., 3]
 
         randomize_base_com = (True and domain_rand_general)
         added_com_range = [-0.1, 0.1]
-        added_com_z_range = [-0.15, 0.15]
+        added_com_z_range = [-0.1, 0.1]
 
         push_robots = (True and domain_rand_general)
-        push_interval_s = 4
-        max_push_vel_xy = 1.0
+        push_interval_s = 8
+        max_push_vel_xy = 0.3
 
         randomize_motor = (True and domain_rand_general)
         motor_strength_range = [0.8, 1.2]
@@ -282,10 +289,10 @@ class GR1_wb_Cfg(HumanoidCfg):
 
     class noise(HumanoidCfg.noise):
         add_noise = True
-        noise_increasing_steps = 2000
+        noise_increasing_steps = 1000
 
         class noise_scales:
-            dof_pos = 0.02
+            dof_pos = 0.1
             dof_vel = 1.0
             lin_vel = 0.1
             ang_vel = 0.2
@@ -307,9 +314,9 @@ class GR1_wb_Cfg(HumanoidCfg):
         sw_switch = True  # use stand_com_threshold or not
 
         class ranges:
-            lin_vel_x = [-0.5, 1.0]  # min max [m/s]
-            lin_vel_y = [-0.4, 0.4]
-            ang_vel_yaw = [-0.5, 0.5]  # min max [rad/s]
+            lin_vel_x = [-0.3, 0.5]  # min max [m/s]
+            lin_vel_y = [-0.2, 0.2]
+            ang_vel_yaw = [-0.2, 0.2]  # min max [rad/s]
 
 
 class GR1_wbCfgPPO(HumanoidCfgPPO):
@@ -319,11 +326,13 @@ class GR1_wbCfgPPO(HumanoidCfgPPO):
         policy_class_name = 'ActorCriticRMA'
         algorithm_class_name = 'PPORMA'
         runner_class_name = 'OnPolicyRunner'
-        max_iterations = 20001  # number of policy updates
+        max_iterations = 12001  # number of policy updates
+        learning_rate = 1e-4 #1.e-3 #5.e-4
+        desired_kl = 0.008
 
         # logging
         save_interval = 100  # check for potential saves every this many iterations
-        experiment_name = 'test'
+        experiment_namea = 'test'
         run_name = ''
         # load and resume
         resume = False
@@ -333,6 +342,8 @@ class GR1_wbCfgPPO(HumanoidCfgPPO):
 
     class algorithm(HumanoidCfgPPO.algorithm):
         grad_penalty_coef_schedule = [0.002, 0.002, 700, 1000]
+        entropy_coef = 0.001
 
     class policy(HumanoidCfgPPO.policy):
-        action_std = [0.3, 0.3, 0.8, 0.8, 0.5, 0.5] * 2
+        init_noise_std = 1.0
+        action_std = [0.3, 0.3, 0.5, 0.5, 0.2, 0.3] * 2

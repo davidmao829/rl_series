@@ -177,7 +177,7 @@ class Humanoid(LeggedRobot):
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), action_tensor[:, None, :].clone()], dim=1)
 
         if self.cfg.domain_rand.action_delay:
-            if self.total_env_steps_counter <= 3000 * 24:
+            if self.total_env_steps_counter <= 1500 * 24:
                 self.delay = torch.tensor(0, device=self.device, dtype=torch.float)
             else:
                 # self.delay = torch.tensor(np.random.randint(2), device=self.device, dtype=torch.float)
@@ -228,6 +228,7 @@ class Humanoid(LeggedRobot):
         self.gym.refresh_rigid_body_state_tensor(self.sim)
 
         # reset buffers
+        self.last_last_actions[env_ids] = 0.
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.last_torques[env_ids] = 0.
@@ -312,6 +313,7 @@ class Humanoid(LeggedRobot):
 
         self.compute_observations()
 
+        self.last_last_actions[:] = torch.clone(self.last_actions[:])
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_torques[:] = self.torques[:]
@@ -625,6 +627,7 @@ class Humanoid(LeggedRobot):
 
     def _reward_feet_air_time(self):
         contact = self.contact_forces[:, self.feet_indices, 2] > 5.
+        stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
         stance_mask = self._get_gait_phase()
         self.contact_filt = torch.logical_or(torch.logical_or(contact, stance_mask), self.last_contacts)
         self.last_contacts = contact
@@ -632,6 +635,7 @@ class Humanoid(LeggedRobot):
         self.feet_air_time += self.dt
         air_time = self.feet_air_time.clamp(0, 0.5) * first_contact
         self.feet_air_time *= ~self.contact_filt
+        air_time[stand_command] = 1.0
         return air_time.sum(dim=1)
 
     # def _reward_stand_still(self):
@@ -718,6 +722,18 @@ class Humanoid(LeggedRobot):
     def _reward_dof_error(self):
         dof_error = torch.sum(torch.square(self.dof_pos - self.default_dof_pos), dim=1)
         return dof_error
+
+    def _reward_default_joint_pos(self):
+        """
+        Calculates the reward for keeping joint positions close to default positions, with a focus
+        on penalizing deviation in yaw and roll directions. Excludes yaw and roll from the main penalty.
+        """
+        joint_diff = self.dof_pos - self.default_dof_pos
+        left_yaw_roll = joint_diff[:, :2]
+        right_yaw_roll = joint_diff[:, 6: 8]
+        yaw_roll = torch.norm(left_yaw_roll, dim=1) + torch.norm(right_yaw_roll, dim=1)
+        yaw_roll = torch.clamp(yaw_roll - 0.1, 0, 50)
+        return torch.exp(-yaw_roll * 100) - 0.01 * torch.norm(joint_diff, dim=1)
 
     def _reward_dof_error_upper(self):
         dof_error = torch.sum(torch.square(self.dof_pos - self.default_dof_pos)[:, self.cfg.asset.n_lower_body_dofs:], dim=1)

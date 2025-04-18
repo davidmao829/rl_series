@@ -273,6 +273,7 @@ class LeggedRobot(BaseTask):
 
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
+        self.last_last_actions[:] = torch.clone(self.last_actions[:])
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_torques[:] = self.torques[:]
@@ -332,6 +333,7 @@ class LeggedRobot(BaseTask):
         self.gym.refresh_rigid_body_state_tensor(self.sim)
 
         # reset buffers
+        self.last_last_actions[env_ids] = 0.
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.last_torques[env_ids] = 0.
@@ -604,7 +606,6 @@ class LeggedRobot(BaseTask):
                 torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
             else:
                 torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
-                
         elif control_type=="V":
             torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
@@ -766,6 +767,8 @@ class LeggedRobot(BaseTask):
         self.d_gains = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device,
+                                             requires_grad=False)
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_torques = torch.zeros_like(self.torques)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])

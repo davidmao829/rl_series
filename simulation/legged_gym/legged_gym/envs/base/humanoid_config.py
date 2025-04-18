@@ -295,7 +295,7 @@ class HumanoidCfgPPO(BaseConfig):
         value_loss_coef = 1.0
         use_clipped_value_loss = True
         clip_param = 0.2
-        entropy_coef = 0.01
+        entropy_coef = 0.001
         num_learning_epochs = 5
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
         learning_rate = 2e-4 #1.e-3 #5.e-4
@@ -305,7 +305,7 @@ class HumanoidCfgPPO(BaseConfig):
         desired_kl = 0.008
         max_grad_norm = 1.
         dagger_update_freq = 20
-        priv_reg_coef_schedual = [0, 0.1, 2000, 3000]
+        priv_reg_coef_schedual = [0, 0.1, 1000, 2000]
         priv_reg_coef_schedual_resume = [0, 0.1, 0, 1]
 
     class runner:

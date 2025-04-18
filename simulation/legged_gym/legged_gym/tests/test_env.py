@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
@@ -34,24 +34,28 @@ from datetime import datetime
 
 import isaacgym
 from legged_gym.envs import *
-from legged_gym.gym_utils import get_args, task_registry, Logger
-
+from legged_gym.gym_utils import get_args, export_policy_as_jit, task_registry, Logger
+from colorama import Fore, Style
 import torch
 
 
 def test_env(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
-
-    env_cfg.env.num_envs =  10
-    env_cfg.terrain.num_rows = 10
-    env_cfg.terrain.num_cols = 10
-
+    env_cfg.asset.fix_base_link = True
+    # override some parameters for testing
+    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 1)
+    env_cfg.control.action_scale = 1
+    env_cfg.init_state.pos = [0, 0 , 1.9]
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-    for i in range(int(10*env.max_episode_length)):
-        actions = 0.*torch.ones(env.num_envs, env.num_actions, device=env.device)
+    for i in range(int(10 * env.max_episode_length)):
+        # print(f"{Fore.GREEN}Ref_Dof_Pos{env.ref_dof_pos}{Style.RESET_ALL}")
+        actions = env.ref_dof_pos.clone()[:, [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13]] #* 0
+        # print(f"{Fore.RED}actions{actions}{Style.RESET_ALL}")
+        #print(env.rigid_body_states[:, env.feet_indices, 2]) # 足部高度
         obs, _, rew, done, info = env.step(actions)
     print("Done")
+
 
 if __name__ == '__main__':
     args = get_args()

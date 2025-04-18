@@ -34,7 +34,7 @@ import code
 
 import isaacgym
 from legged_gym.envs import *
-from legged_gym.gym_utils import  get_args, export_policy_as_jit, task_registry, Logger
+from legged_gym.gym_utils import get_args, export_policy_as_jit, task_registry, Logger
 from isaacgym import gymtorch, gymapi, gymutil
 import numpy as np
 import torch
@@ -49,9 +49,10 @@ from PIL import Image
 from legged_gym.gym_utils.helpers import get_load_path as get_load_path_auto
 from tqdm import tqdm
 
+
 def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="jit"):
     print("checkpoint: ", checkpoint)
-    if checkpoint==-1:
+    if checkpoint == -1:
         models = [file for file in os.listdir(root) if model_name_include in file]
         print("models: ", models)
         models.sort(key=lambda m: '{0:0>15}'.format(m))
@@ -59,30 +60,33 @@ def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="jit"):
         checkpoint = model.split("_")[-1].split(".")[0]
         print("checkpoint: ", checkpoint)
 
-
     return model, checkpoint
 
+
 def set_play_cfg(env_cfg):
-    env_cfg.env.num_envs = 1#2 if not args.num_envs else args.num_envs
+    env_cfg.env.num_envs = 1  # 2 if not args.num_envs else args.num_envs
     # env_cfg.env.episode_length_s = 60
     # env_cfg.commands.resampling_time = 60
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
     env_cfg.terrain.max_difficulty = True
-    
-    env_cfg.noise.add_noise = False
+
+    env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.push_interval_s = 5
-    env_cfg.domain_rand.max_push_vel_xy = 2.5
+    env_cfg.domain_rand.max_push_vel_xy = 1.0
     env_cfg.domain_rand.randomize_base_mass = False
     env_cfg.domain_rand.randomize_base_com = False
     env_cfg.domain_rand.action_delay = False
+    env_cfg.terrain.mesh_type = 'plane'
+    # env_cfg.env.use_motor_model = False
 
 
 def play(args):
     faulthandler.enable()
+
     exptid = args.exptid
     log_pth = "../../logs/{}/".format(args.proj_name) + args.exptid
 
@@ -94,24 +98,25 @@ def play(args):
     if_normalize = env_cfg.env.normalize_obs
 
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+    env.gym.fetch_results(env.sim, False)
 
-    env.commands[:, 0] = 0
+    env.commands[:, 0] = 0.4
     env.commands[:, 1] = 0
     env.commands[:, 2] = 0
     obs = env.get_observations()
 
-
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root=log_pth, env=env, name=args.task, args=args,
+                                                                   train_cfg=train_cfg, return_log_dir=True)
 
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
         model, checkpoint = get_load_path(root=path, checkpoint=args.checkpoint)
-        print("model",model)
-        print("checkpoint",checkpoint)
+        print("model", model)
+        print("checkpoint", checkpoint)
         path = os.path.join(path, model)
-        print("path",path)
+        print("path", path)
         print("Loading jit for policy: ", path)
         policy_jit = torch.jit.load(path, map_location=env.device)
     else:
@@ -126,7 +131,7 @@ def play(args):
         import imageio
         env.enable_viewer_sync = False
         for i in range(env.num_envs):
-            video_name = args.proj_name + "-" + args.exptid +".mp4"
+            video_name = args.proj_name + "-" + args.exptid + ".mp4"
             run_name = log_pth.split("/")[-1]
             path = f"../../logs/videos_retarget/{run_name}"
             if not os.path.exists(path):
@@ -144,15 +149,14 @@ def play(args):
         if not os.path.exists(path):
             os.makedirs(path)
         dict_name = os.path.join(path, dict_name)
-        
-    
+
     if not (args.record_video or args.record_log):
-        traj_length = 100*int(env.max_episode_length)
+        traj_length = 100 * int(env.max_episode_length)
     else:
         traj_length = int(env.max_episode_length)
-        
+
     env_id = env.lookat_id
-    
+
     for i in tqdm(range(traj_length)):
         if args.use_jit:
             actions = policy_jit(obs.detach())
@@ -162,32 +166,33 @@ def play(args):
             else:
                 normalized_obs = obs.detach()
             actions = policy(normalized_obs, hist_encoding=True)
-            
+
         obs, _, rews, dones, infos = env.step(actions.detach())
         # print("feet_position_left", env.rigid_body_states[:, 6, 2])
         # print("feet_position_right", env.rigid_body_states[:, 11, 2])
+        # print('base_height', env.root_states[:, 2])
         if args.record_video:
             imgs = env.render_record(mode='rgb_array')
             if imgs is not None:
                 for i in range(env.num_envs):
                     mp4_writers[i].append_data(imgs[i])
-                    
+
         if args.record_log:
             log_dict = env.get_episode_log()
             logs_dict.append(log_dict)
-        
+
         # Interaction
         if env.button_pressed:
             print(f"env_id: {env.lookat_id:<{5}}")
-    
+
     if args.record_video:
         for mp4_writer in mp4_writers:
             mp4_writer.close()
-            
+
     if args.record_log:
         with open(dict_name, 'w') as f:
             json.dump(logs_dict, f)
-    
+
 
 if __name__ == '__main__':
     args = get_args()
