@@ -122,130 +122,131 @@ class GR1_wb(Humanoid):
                                                      self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1),
                                                      device=self.device).squeeze(1)
 
-    # def compute_ref_state(self):
-    #     phase = self._get_phase()
-    #     _sin_pos_l = torch.sin(2 * torch.pi * phase)
-    #     _sin_pos_r = torch.sin(2 * torch.pi * phase + torch.pi)
-    #     sin_pos_l = _sin_pos_l.clone()
-    #     sin_pos_r = _sin_pos_r.clone()
-    #     self.ref_dof_pos = torch.zeros_like(self.dof_pos)
-    #     scale_1 = self.cfg.rewards.target_joint_pos_scale
-    #     scale_2 = 2 * scale_1
-    #     # left foot stance phase set to default joint pos
-    #     sin_pos_l[sin_pos_l > 0] = 0
-    #     ratio_l = torch.clamp(torch.abs(sin_pos_l) - self.cfg.rewards.double_support_threshold, min=0, max=1) / \
-    #                 (1 - self.cfg.rewards.double_support_threshold) * torch.sign(sin_pos_l)
-    #     self.ref_dof_pos[:, 2] = ratio_l * scale_1
-    #     self.ref_dof_pos[:, 3] = -ratio_l * scale_2
-    #     self.ref_dof_pos[:, 4] = ratio_l * scale_1
-    #     # right foot stance phase set to default joint pos
-    #     sin_pos_r[sin_pos_r > 0] = 0
-    #     ratio_r = torch.clamp(torch.abs(sin_pos_r) - self.cfg.rewards.double_support_threshold, min=0, max=1) / (
-    #                 1 - self.cfg.rewards.double_support_threshold) * torch.sign(sin_pos_r)
-    #     self.ref_dof_pos[:, 8] = ratio_r * scale_1
-    #     self.ref_dof_pos[:, 9] = -ratio_r * scale_2
-    #     self.ref_dof_pos[:, 10] = ratio_r * scale_1
-    #     # Double support phase
-    #     indices = (torch.abs(sin_pos_l) < self.cfg.rewards.double_support_threshold) & (
-    #                 torch.abs(sin_pos_r) < self.cfg.rewards.double_support_threshold)
-    #     self.ref_dof_pos[indices] = 0
-    #     self.ref_dof_pos += self.default_dof_pos_all
-    #     # print("ref_dof_pos: ", self.ref_dof_pos[0, [2,3,4,8,9,10]])
-    #     self.ref_action = 2 * self.ref_dof_pos
-    def _get_phase(self):
-        cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
-
-        if self.cfg.commands.sw_switch:
-            stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
-            self.phase_length_buf[stand_command] = 0
-            # self.gait_start is rand 0 or 0.5
-            phase = (self.phase_length_buf * self.dt % cycle_time) * (~stand_command)
-        else:
-            phase = self.episode_length_buf * self.dt % cycle_time
-
-        return phase
-
-    def _get_gait_phase(self):  # return float mask 1 is stance, 0 is swing
-        phase = self._get_phase()
-        cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
-        stance_mask = torch.zeros((self.num_envs, 2),
-                                  device=self.device)  # Left foot stance (0.0 ~ 0.04s and 0.76 ~ 0.8s)
-        stance_mask[:, 0] = (phase >= (0.5 * cycle_time))  # Left foot stance (0.4 ~ 0.8s)
-        stance_mask[:, 1] = (phase < (0.5 * cycle_time))  # Left foot stance (0.0 ~ 0.4s)
-        # 着地掩码为1
-        stance_mask[(phase < (0.05 * cycle_time)) | (phase >= (0.95 * cycle_time)) | ((phase >= (0.45 * cycle_time)) & (
-                phase <= (0.55 * cycle_time)))] = 1  # Double support phase (0.0 ~ 0.02s and 0.78 ~ 0.8s)
-        self.ref_mask = 1 - stance_mask
-        return stance_mask
-
     def compute_ref_state(self):
-        phase = self._get_phase()  # phase shape: [4096]
+        phase = self._get_phase()
+        _sin_pos_l = torch.sin(2 * torch.pi * phase)
+        _sin_pos_r = torch.sin(2 * torch.pi * phase + torch.pi)
+        sin_pos_l = _sin_pos_l.clone()
+        sin_pos_r = _sin_pos_r.clone()
         self.ref_dof_pos = torch.zeros_like(self.dof_pos)
-        # phase = phase % 1.0  # Normalize phase to [0, 1)# Initialize reference positions
-        self.ref_dof_pos[:, :] = self.default_dof_pos[0, :]  # shape: [4096, 12]# Define the fixed pose (双支撑姿态)
-        cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
-        fixed_pose_list = [0.0, 0.0, -0.2, 0.4, -0.2, 0.0]
-        fixed_pose = torch.tensor(fixed_pose_list,
-                                  device=self.device)  # shape: [6]# Define the stepping trajectory (左腿摆动和右腿摆动的轨迹)
-        stepping_traj = [fixed_pose_list,  # t = 0.0s
-                         [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.1s
-                         [0.0, 0.0, -0.38, 0.76, -0.38, 0.0],  # t = 0.2s
-                         [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.3s
-                         fixed_pose_list]  # t = 0.4s，与 t=0.0s相同
-
-        arm_traj = [[0, 0],
-                    [0.3, -0.2],
-                    [0, 0],
-                    [-0.2, 0.3],
-                    [0, 0]]
-        arm_traj = torch.tensor(arm_traj, device=self.device)
-
-        stepping_traj = torch.tensor(stepping_traj,
-                                     device=self.device)  # shape: [5, 6]# Define the time points for the stepping trajectory
-        offline_times = torch.tensor([0, 0.125, 0.25, 0.375, 0.5], device=self.device) * cycle_time
-        arm_offline_times = torch.tensor([0, 0.25, 0.5, 0.75, 1.0], device=self.device) * cycle_time
-        stepping_traj_np = stepping_traj.cpu().numpy()  # shape: [5, 6]
-        arm_traj_np = arm_traj.cpu().numpy()  # shape: [5, 6]
-        offline_times_np = offline_times.cpu().numpy()  # shape: [5]# Interpolate the stepping trajectory using cubic spline
-        arm_offline_times_np = arm_offline_times.cpu().numpy()  # shape: [5]# Interpolate the stepping trajectory using cubic spline
-        cs = CubicSpline(offline_times_np, stepping_traj_np, axis=0)
-        arm_cs = CubicSpline(arm_offline_times_np, arm_traj_np, axis=0)
-
-        # left_stand_mask= (phase <=0.5*cycle_time)&(phase>=0.0)
-        # right_stand_mask= (phase >0.5*cycle_time) & (phase<=cycle_time)
-        mask_double_support_1 = (phase < (0.05 * cycle_time))  # 双支撑阶段：0.0 ~ 0.04s
-        mask_left_swing = (phase >= (0.05 * cycle_time)) & (phase < (0.5 * cycle_time))  # 左腿摆动阶段：0.04 ~ 0.4s
-        # print(f"{Fore.GREEN}mask_left_swing: {mask_left_swing}{Style.RESET_ALL}")
-        mask_double_support_2 = (phase >= (0.45 * cycle_time)) & (phase <= (0.55 * cycle_time))
-        mask_right_swing = (phase >= (0.5 * cycle_time)) & (phase < (0.95 * cycle_time))  # 右腿摆动阶段：0.4 ~ 0.76s
-        # print(f"{Fore.LIGHTCYAN_EX}mask_right_swing: {mask_right_swing}{Style.RESET_ALL}")
-        mask_double_support_3 = (phase >= (
-                0.95 * cycle_time))  # 双支撑阶段：0.76 ~ 0.8s# Compute t_virtual for left and right swing phases
-        t_virtual_left = ((phase[mask_left_swing] - (0.05 * cycle_time)) / (0.45 * cycle_time)) * (0.5 * cycle_time)
-        t_virtual_right = ((phase[mask_right_swing] - (0.55 * cycle_time)) / (0.45 * cycle_time)) * (
-                0.5 * cycle_time)  # Interpolate for left and right swing phases
-        arm_np = arm_cs(np.array(phase.tolist())).squeeze()
-        self.ref_dof_pos[:, [12, 13]] = torch.tensor(arm_np, device=self.device,
-                                                     dtype=torch.float32)  # Convert to Float
-
-        # Interpolate for left and right swing phases
-        if mask_left_swing.any():
-            left_command_np = cs(t_virtual_left.cpu().numpy())  # Interpolate using numpy
-            left_command = torch.tensor(left_command_np, device=self.device, dtype=torch.float32)  # Convert to Float
-            self.ref_dof_pos[mask_left_swing, 0:6] = left_command
-            self.ref_dof_pos[mask_left_swing, 6:12] = fixed_pose.float()  # 右腿保持固定姿态
-        if mask_right_swing.any():
-            right_command_np = cs(t_virtual_right.cpu().numpy())  # Interpolate using numpy
-            right_command = torch.tensor(right_command_np, device=self.device, dtype=torch.float32)  # Convert to Float
-            self.ref_dof_pos[mask_right_swing, 6:12] = right_command
-            self.ref_dof_pos[mask_right_swing, 0:6] = fixed_pose.float()  # 左腿保持固定姿态
-
-        self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 0:6] = fixed_pose
-        self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 6:12] = fixed_pose
-        # if mask_double_support_1 | mask_double_support_2 | mask_double_support_3:
-        #     print(f"{Fore.GREEN}Time{self._get_phase()}     Ref_Dof_Pos{self.ref_dof_pos}{Style.RESET_ALL}")
-        #     print(f"{Fore.RED} Dof_Pos{self.dof_pos}{Style.RESET_ALL}")
+        scale_1 = self.cfg.rewards.target_joint_pos_scale
+        scale_2 = 2 * scale_1
+        # left foot stance phase set to default joint pos
+        sin_pos_l[sin_pos_l > 0] = 0
+        ratio_l = torch.clamp(torch.abs(sin_pos_l) - self.cfg.rewards.double_support_threshold, min=0, max=1) / \
+                    (1 - self.cfg.rewards.double_support_threshold) * torch.sign(sin_pos_l)
+        self.ref_dof_pos[:, 2] = ratio_l * scale_1
+        self.ref_dof_pos[:, 3] = -ratio_l * scale_2
+        self.ref_dof_pos[:, 4] = ratio_l * scale_1
+        # right foot stance phase set to default joint pos
+        sin_pos_r[sin_pos_r > 0] = 0
+        ratio_r = torch.clamp(torch.abs(sin_pos_r) - self.cfg.rewards.double_support_threshold, min=0, max=1) / (
+                    1 - self.cfg.rewards.double_support_threshold) * torch.sign(sin_pos_r)
+        self.ref_dof_pos[:, 8] = ratio_r * scale_1
+        self.ref_dof_pos[:, 9] = -ratio_r * scale_2
+        self.ref_dof_pos[:, 10] = ratio_r * scale_1
+        # Double support phase
+        indices = (torch.abs(sin_pos_l) < self.cfg.rewards.double_support_threshold) & (
+                    torch.abs(sin_pos_r) < self.cfg.rewards.double_support_threshold)
+        self.ref_dof_pos[indices] = 0
+        self.ref_delta_action = self.ref_dof_pos.clone()
+        self.ref_dof_pos += self.default_dof_pos_all
+        # print("ref_dof_pos: ", self.ref_dof_pos[0, [2,3,4,8,9,10]])
         self.ref_action = 2 * self.ref_dof_pos
+    # def _get_phase(self):
+    #     cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
+    #
+    #     if self.cfg.commands.sw_switch:
+    #         stand_command = (torch.norm(self.commands[:, :3], dim=1) <= self.cfg.commands.stand_com_threshold)
+    #         self.phase_length_buf[stand_command] = 0
+    #         # self.gait_start is rand 0 or 0.5
+    #         phase = (self.phase_length_buf * self.dt % cycle_time) * (~stand_command)
+    #     else:
+    #         phase = self.episode_length_buf * self.dt % cycle_time
+    #
+    #     return phase
+    #
+    # def _get_gait_phase(self):  # return float mask 1 is stance, 0 is swing
+    #     phase = self._get_phase()
+    #     cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
+    #     stance_mask = torch.zeros((self.num_envs, 2),
+    #                               device=self.device)  # Left foot stance (0.0 ~ 0.04s and 0.76 ~ 0.8s)
+    #     stance_mask[:, 0] = (phase >= (0.5 * cycle_time))  # Left foot stance (0.4 ~ 0.8s)
+    #     stance_mask[:, 1] = (phase < (0.5 * cycle_time))  # Left foot stance (0.0 ~ 0.4s)
+    #     # 着地掩码为1
+    #     stance_mask[(phase < (0.05 * cycle_time)) | (phase >= (0.95 * cycle_time)) | ((phase >= (0.45 * cycle_time)) & (
+    #             phase <= (0.55 * cycle_time)))] = 1  # Double support phase (0.0 ~ 0.02s and 0.78 ~ 0.8s)
+    #     self.ref_mask = 1 - stance_mask
+    #     return stance_mask
+
+    # def compute_ref_state(self):
+    #     phase = self._get_phase()  # phase shape: [4096]
+    #     self.ref_dof_pos = torch.zeros_like(self.dof_pos)
+    #     # phase = phase % 1.0  # Normalize phase to [0, 1)# Initialize reference positions
+    #     self.ref_dof_pos[:, :] = self.default_dof_pos[0, :]  # shape: [4096, 12]# Define the fixed pose (双支撑姿态)
+    #     cycle_time = self.cfg.rewards.cycle_time  # cycle_time = 0.8s
+    #     fixed_pose_list = [0.0, 0.0, -0.2, 0.4, -0.2, 0.0]
+    #     fixed_pose = torch.tensor(fixed_pose_list,
+    #                               device=self.device)  # shape: [6]# Define the stepping trajectory (左腿摆动和右腿摆动的轨迹)
+    #     stepping_traj = [fixed_pose_list,  # t = 0.0s
+    #                      [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.1s
+    #                      [0.0, 0.0, -0.38, 0.76, -0.38, 0.0],  # t = 0.2s
+    #                      [0.0, 0.0, -0.29, 0.58, -0.29, 0.0],  # t = 0.3s
+    #                      fixed_pose_list]  # t = 0.4s，与 t=0.0s相同
+    #
+    #     arm_traj = [[0, 0],
+    #                 [0.3, -0.2],
+    #                 [0, 0],
+    #                 [-0.2, 0.3],
+    #                 [0, 0]]
+    #     arm_traj = torch.tensor(arm_traj, device=self.device)
+    #
+    #     stepping_traj = torch.tensor(stepping_traj,
+    #                                  device=self.device)  # shape: [5, 6]# Define the time points for the stepping trajectory
+    #     offline_times = torch.tensor([0, 0.125, 0.25, 0.375, 0.5], device=self.device) * cycle_time
+    #     arm_offline_times = torch.tensor([0, 0.25, 0.5, 0.75, 1.0], device=self.device) * cycle_time
+    #     stepping_traj_np = stepping_traj.cpu().numpy()  # shape: [5, 6]
+    #     arm_traj_np = arm_traj.cpu().numpy()  # shape: [5, 6]
+    #     offline_times_np = offline_times.cpu().numpy()  # shape: [5]# Interpolate the stepping trajectory using cubic spline
+    #     arm_offline_times_np = arm_offline_times.cpu().numpy()  # shape: [5]# Interpolate the stepping trajectory using cubic spline
+    #     cs = CubicSpline(offline_times_np, stepping_traj_np, axis=0)
+    #     arm_cs = CubicSpline(arm_offline_times_np, arm_traj_np, axis=0)
+    #
+    #     # left_stand_mask= (phase <=0.5*cycle_time)&(phase>=0.0)
+    #     # right_stand_mask= (phase >0.5*cycle_time) & (phase<=cycle_time)
+    #     mask_double_support_1 = (phase < (0.05 * cycle_time))  # 双支撑阶段：0.0 ~ 0.04s
+    #     mask_left_swing = (phase >= (0.05 * cycle_time)) & (phase < (0.5 * cycle_time))  # 左腿摆动阶段：0.04 ~ 0.4s
+    #     # print(f"{Fore.GREEN}mask_left_swing: {mask_left_swing}{Style.RESET_ALL}")
+    #     mask_double_support_2 = (phase >= (0.45 * cycle_time)) & (phase <= (0.55 * cycle_time))
+    #     mask_right_swing = (phase >= (0.5 * cycle_time)) & (phase < (0.95 * cycle_time))  # 右腿摆动阶段：0.4 ~ 0.76s
+    #     # print(f"{Fore.LIGHTCYAN_EX}mask_right_swing: {mask_right_swing}{Style.RESET_ALL}")
+    #     mask_double_support_3 = (phase >= (
+    #             0.95 * cycle_time))  # 双支撑阶段：0.76 ~ 0.8s# Compute t_virtual for left and right swing phases
+    #     t_virtual_left = ((phase[mask_left_swing] - (0.05 * cycle_time)) / (0.45 * cycle_time)) * (0.5 * cycle_time)
+    #     t_virtual_right = ((phase[mask_right_swing] - (0.55 * cycle_time)) / (0.45 * cycle_time)) * (
+    #             0.5 * cycle_time)  # Interpolate for left and right swing phases
+    #     arm_np = arm_cs(np.array(phase.tolist())).squeeze()
+    #     self.ref_dof_pos[:, [12, 13]] = torch.tensor(arm_np, device=self.device,
+    #                                                  dtype=torch.float32)  # Convert to Float
+    #
+    #     # Interpolate for left and right swing phases
+    #     if mask_left_swing.any():
+    #         left_command_np = cs(t_virtual_left.cpu().numpy())  # Interpolate using numpy
+    #         left_command = torch.tensor(left_command_np, device=self.device, dtype=torch.float32)  # Convert to Float
+    #         self.ref_dof_pos[mask_left_swing, 0:6] = left_command
+    #         self.ref_dof_pos[mask_left_swing, 6:12] = fixed_pose.float()  # 右腿保持固定姿态
+    #     if mask_right_swing.any():
+    #         right_command_np = cs(t_virtual_right.cpu().numpy())  # Interpolate using numpy
+    #         right_command = torch.tensor(right_command_np, device=self.device, dtype=torch.float32)  # Convert to Float
+    #         self.ref_dof_pos[mask_right_swing, 6:12] = right_command
+    #         self.ref_dof_pos[mask_right_swing, 0:6] = fixed_pose.float()  # 左腿保持固定姿态
+    #
+    #     self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 0:6] = fixed_pose
+    #     self.ref_dof_pos[mask_double_support_1 | mask_double_support_2 | mask_double_support_3, 6:12] = fixed_pose
+    #     # if mask_double_support_1 | mask_double_support_2 | mask_double_support_3:
+    #     #     print(f"{Fore.GREEN}Time{self._get_phase()}     Ref_Dof_Pos{self.ref_dof_pos}{Style.RESET_ALL}")
+    #     #     print(f"{Fore.RED} Dof_Pos{self.dof_pos}{Style.RESET_ALL}")
+    #     self.ref_action = 2 * self.ref_dof_pos
 
     def _update_terrain_curriculum(self, env_ids):
         """ Implements the game-inspired curriculum.
@@ -444,7 +445,6 @@ class GR1_wb(Humanoid):
                 torques = self.motor_strength[0] * self.p_gains * (
                         actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[
                               1] * self.d_gains * self.dof_vel
-
         elif control_type == "V":
             torques = self.p_gains * (actions_scaled - self.dof_vel) - self.d_gains * (
                     self.dof_vel - self.last_dof_vel) / self.sim_params.dt
@@ -452,6 +452,7 @@ class GR1_wb(Humanoid):
             torques = actions_scaled
         else:
             raise NameError(f"Unknown controller type: {control_type}")
+        self.ideal_torque = torques.clone()
 
         if self.use_motor_model:
             torques[:, [0]] = self.motordelay0(torques[:, [0]])

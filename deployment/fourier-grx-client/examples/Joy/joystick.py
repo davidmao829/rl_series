@@ -36,7 +36,7 @@ class JoystickProcess(Process):
         return pygame.joystick.Joystick(0).get_hat(hat)
 
     def get_joystick(self):
-        l_x = 0.4 * self._get_axis(0)  # right positive
+        l_x = 0.8 * self._get_axis(0)  # right positive
         l_y = 0.4 * self._get_axis(1)  # down positive
         r_x = self._get_axis(2)  # right positive
         r_y = self._get_axis(3)  # down positive

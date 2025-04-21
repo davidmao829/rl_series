@@ -47,6 +47,7 @@ import matplotlib.pyplot as plt
 from time import time, sleep
 from PIL import Image
 from legged_gym.gym_utils.helpers import get_load_path as get_load_path_auto
+import csv
 from tqdm import tqdm
 
 
@@ -157,6 +158,7 @@ def play(args):
 
     env_id = env.lookat_id
 
+
     for i in tqdm(range(traj_length)):
         if args.use_jit:
             actions = policy_jit(obs.detach())
@@ -192,6 +194,12 @@ def play(args):
     if args.record_log:
         with open(dict_name, 'w') as f:
             json.dump(logs_dict, f)
+
+
+
+
+
+
 
 
 if __name__ == '__main__':

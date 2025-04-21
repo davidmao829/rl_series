@@ -90,10 +90,10 @@ class DemoNohlaRLWalk:
         self.joint_default_position = np.array([
             0.0, 0.0, -0.4, 0.8, -0.4, -0.0,  # left leg (6)
             -0.0, 0.0, -0.4, 0.8, -0.4, 0.0,  # right leg (6)
-            0.0, -0.3, 0.0,  # waist (3)
+            0.0, -0.0, 0.0,  # waist (3)
             0.0, 0.0, 0.0,  # waist (3)
-            0.0, 0.2, 0.0, -0.3, 0.0, 0.0, 0.0,  # left arm (4)
-            0.0, -0.2, 0.0, -0.3, 0.0, 0.0, 0.0,  # right arm (4)
+            0.0, 0.0, 0.0, -0.7, 0.0, 0.0, 0.0,  # left arm (4)
+            0.0, -0.0, 0.0, -0.7, 0.0, 0.0, 0.0,  # right arm (4)
         ])
 
         self.proprio_history_buf = deque(maxlen=cfg.history_len)
@@ -106,7 +106,7 @@ class DemoNohlaRLWalk:
         session_options = ort.SessionOptions()
         session_options.intra_op_num_threads = 20
         self.sess = ort.InferenceSession(
-            '/home/gr124ja0052/Fourier/fourier-grx-client/examples/data/1122/gr1_policy.onnx',
+            '/home/gr124ja0052/Fourier/fourier-grx-client/examples/data/1203/gr1_policy.onnx',
             session_options)
         # warm up
         time.sleep(5)
@@ -208,10 +208,11 @@ class DemoNohlaRLWalk:
         lx, ly = left_joy
         rx, ry = right_joy
 
-        self.commands[0] = ly  if abs(ly) > 0.1 else 0
+        self.commands[0] = ly if abs(ly) > 0.1 else 0
         self.commands[1] = -lx * 0.2 if abs(lx) > 0.1 else 0
-        self.commands[2] = -rx * 0.2 if abs(rx) > 0.1 else 0
+        self.commands[2] = 0  #-rx * 0.2 if abs(rx) > 0.1 else 0
         # print("Joystick Read ",self.commands[0])
+
     def sensor_data_thread(self):
         commands = np.zeros(3, dtype=np.float32)
 
@@ -247,6 +248,8 @@ class DemoNohlaRLWalk:
             joint_offset_position = joint_measured_position_urdf[0:12] - self.joint_default_position[0:12]
 
             vel_norm = np.sqrt(self.commands[0] ** 2 + self.commands[1] ** 2 + self.commands[2] ** 2)
+            print("command", self.commands)
+            print("vel_norm", vel_norm)
             if vel_norm < 0.05:
                 stand_flag = 0
             else:
@@ -255,7 +258,7 @@ class DemoNohlaRLWalk:
                 2 * math.pi * self.count_lowlevel * stand_flag * self.cfg.dt / self.cfg.cycle_time)
             left_leg_phase = math.cos(
                 2 * math.pi * self.count_lowlevel * stand_flag * self.cfg.dt / self.cfg.cycle_time)
-
+            print("stand_flag", stand_flag)
             obs = np.zeros(self.cfg.n_proprio, dtype=np.float32)
             obs[0] = right_leg_phase
             obs[1] = left_leg_phase
@@ -263,10 +266,14 @@ class DemoNohlaRLWalk:
             obs[3] = self.commands[1]
             obs[4] = self.commands[2]
             obs[5:8] = imu_angular_velocity * self.cfg.obs_scale.ang_vel
-            obs[8:10] = imu_euler_ang[:2] / 20.0
+            obs[8:10] = imu_euler_ang[:2]
             obs[10:22] = joint_offset_position[0:12] * self.cfg.obs_scale.dof_pos
             obs[22:34] = joint_measured_velocity_urdf[0:12] * self.cfg.obs_scale.dof_vel
             obs[34:44] = self.last_action
+            # print("hip——0",joint_measured_position_urdf[0])
+            # print("hip——6",joint_measured_position_urdf[6])
+            # print(f"imu_euler:{obs[8:10]}")
+            # print(f"joint_position:{obs[10:22]}")
             print("x_vel", self.commands[0])
             # print("joint_offset_position[0:12]", joint_offset_position[0:12])
             obs_hist = np.array(self.proprio_history_buf).flatten()
@@ -321,6 +328,8 @@ class DemoNohlaRLWalk:
                 time.sleep(0.01 - duration_time)
 
             self.process_remote()
+
+
 def main(
         step_freq: int = 500, act: bool = True
 ):

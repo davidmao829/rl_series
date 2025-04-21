@@ -111,8 +111,8 @@ class GR1_wb_Cfg(HumanoidCfg):
 
     class control(HumanoidCfg.control):
         stiffness = {
-            'hip_roll': 200, 'hip_yaw': 200, 'hip_pitch': 350,
-            'knee_pitch': 350,
+            'hip_roll': 200, 'hip_yaw': 200, 'hip_pitch': 250,
+            'knee_pitch': 250,
             'ankle_pitch': 10, 'ankle_roll': 0.0,
             'shoulder_pitch': 50,
             # 'waist_yaw': 362.52, 'waist_pitch': 362.52, 'waist_roll': 362.52,
@@ -246,11 +246,11 @@ class GR1_wb_Cfg(HumanoidCfg):
         min_dist = 0.2
         max_dist = 0.5
         max_knee_dist = 0.25
-        target_joint_pos_scale = 0.20
+        target_joint_pos_scale = 0.5
         base_height_target = 0.90
         target_feet_height = 0.08
         cycle_time = 0.8
-        double_support_threshold = 0.5
+        double_support_threshold = 0.1
         only_positive_rewards = False
         tracking_sigma = 0.2
         tracking_sigma_ang = 0.125
@@ -288,7 +288,7 @@ class GR1_wb_Cfg(HumanoidCfg):
         action_buf_len = 8
 
     class noise(HumanoidCfg.noise):
-        add_noise = True
+        add_noise = False
         noise_increasing_steps = 1000
 
         class noise_scales:
